@@ -1,0 +1,10 @@
+{
+ "name":"Immigration News Daily Intake — No Auto Publish",
+ "nodes":[
+  {"parameters":{"rule":{"interval":[{"field":"days","triggerAtHour":8}]}},"id":"schedule","name":"Daily at 8","type":"n8n-nodes-base.scheduleTrigger","typeVersion":1.2,"position":[200,200]},
+  {"parameters":{"url":"={{$env.RSS_URL}}"},"id":"rss","name":"Official Immigration RSS","type":"n8n-nodes-base.rssFeedRead","typeVersion":1,"position":[430,200]},
+  {"parameters":{"method":"POST","url":"={{$env.INGEST_URL}}","sendHeaders":true,"headerParameters":{"parameters":[{"name":"x-automation-secret","value":"={{$env.AUTOMATION_SECRET}}"}]},"sendBody":true,"specifyBody":"json","jsonBody":"={{ JSON.stringify({url:$json.link,title:$json.title,summary:$json.contentSnippet || '',source:'RSS',...( $json.isoDate ? {published_at:$json.isoDate} : {})}) }}","options":{}},"id":"ingest","name":"Send to Secure Intake","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[670,200]}
+ ],
+ "connections":{"Daily at 8":{"main":[[{"node":"Official Immigration RSS","type":"main","index":0}]]},"Official Immigration RSS":{"main":[[{"node":"Send to Secure Intake","type":"main","index":0}]]}},
+ "settings":{"executionOrder":"v1"},"active":false
+}
