@@ -8,13 +8,14 @@ type Event={version:number;action:string;feedback:string|null;created_at:string}
 type Draft={id:string;article_id:string;status:string;current_version:number;approved_version:number|null;linkedin_post_id:string|null;created_at:string;draft_versions:Version[];review_events:Event[]};
 type Config={gemini:boolean;linkedin:boolean;publishing:boolean;images:boolean};
 type Data={articles:Article[];drafts:Draft[];connection:{member_sub:string;expires_at:string}|null;config:Config};
-type NewsItem={title:string;url:string;source:string;summary:string;published_at:string|null};
+type NewsItem={title:string;url:string;source:string;summary:string;published_at:string|null;trust:'official'|'trusted'|'other'};
 type Tab='review'|'ready'|'attention'|'published'|'closed';
 type Toast={text:string;tone:'ok'|'danger'|'info'}|null;
 
 const supabase=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 const BODY_LIMIT=3000;
-const TOPICS=['Immigration','H-1B','Green card','UK visa','Canada immigration'];
+// Preset keys (all, usa, uk, canada) are expanded on the server into several searches plus official government feeds.
+const TOPICS=[{label:'All news',q:'all'},{label:'USA',q:'usa'},{label:'UK',q:'uk'},{label:'Canada',q:'canada'},{label:'H-1B',q:'H-1B'},{label:'Green card',q:'green card'},{label:'Asylum',q:'asylum'}];
 
 // Short status labels; a note is shown only when the reviewer has to do something unusual.
 const STATUS:Record<string,{label:string;tone:string;note?:string}>={
@@ -53,7 +54,7 @@ export default function Home(){
  const toastTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
  const [edits,setEdits]=useState<Record<string,{body:string;feedback:string}>>({});
  const [tab,setTab]=useState<Tab>('review');
- const [query,setQuery]=useState('Immigration'),[news,setNews]=useState<NewsItem[]|null>(null),[newsError,setNewsError]=useState(''),[newsLoading,setNewsLoading]=useState(false);
+ const [topic,setTopic]=useState('all'),[query,setQuery]=useState(''),[verifiedOnly,setVerifiedOnly]=useState(true),[news,setNews]=useState<NewsItem[]|null>(null),[newsError,setNewsError]=useState(''),[newsLoading,setNewsLoading]=useState(false);
  const [articleUrl,setArticleUrl]=useState(''),[articleTitle,setArticleTitle]=useState(''),[articleSummary,setArticleSummary]=useState('');
 
  function show(text:string,tone:'ok'|'danger'|'info'){
@@ -83,13 +84,13 @@ export default function Home(){
   if(!session)return;
   try{setData(await api('/api/dashboard'))}catch(e){show(e instanceof Error?e.message:String(e),'danger')}
  }
- async function findNews(q=query){
-  setQuery(q);setNewsLoading(true);setNewsError('');
+ async function findNews(q:string){
+  setTopic(q);setNewsLoading(true);setNewsError('');
   try{const j=await api(`/api/news?q=${encodeURIComponent(q)}`);setNews(j.items)}
   catch(e){setNews([]);setNewsError(e instanceof Error?e.message:String(e))}
   finally{setNewsLoading(false)}
  }
- useEffect(()=>{if(session){load();if(!news)findNews()}else setData(null)},[session]);
+ useEffect(()=>{if(session){load();if(!news)findNews('all')}else setData(null)},[session]);
 
  async function act(fn:()=>Promise<unknown>,success:string,pending?:string){
   setBusy(true);if(pending)show(pending,'info');else setToast(null);
@@ -160,6 +161,9 @@ export default function Home(){
  for(const d of drafts)draftCount.set(d.article_id,(draftCount.get(d.article_id)||0)+1);
  const countFor=(t:Tab)=>drafts.filter(d=>TABS.find(x=>x.key===t)!.statuses.includes(d.status)).length;
  const shown=drafts.filter(d=>TABS.find(x=>x.key===tab)!.statuses.includes(d.status));
+ const verified=(news||[]).filter(n=>n.trust!=='other');
+ const showVerified=verifiedOnly&&verified.length>0;
+ const listed=showVerified?verified:news||[];
  const connectLinkedIn=()=>act(async()=>{const j=await api('/api/linkedin/start',{});window.location.href=j.url},'Opening LinkedIn…');
 
  return (
@@ -187,13 +191,19 @@ export default function Home(){
      {/* ---------- News ---------- */}
      <section className="panel">
       <div className="panel-head"><h2><span className="num">1</span>Pick a story</h2></div>
-      <form className="searchbar" onSubmit={e=>{e.preventDefault();if(query.trim())findNews()}}>
-       <input aria-label="Search news" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search a topic, e.g. H-1B"/>
-       <button className="primary" disabled={newsLoading||!query.trim()}>{newsLoading?'…':'Search'}</button>
-      </form>
       <div className="topics">
-       {TOPICS.map(t=><button key={t} type="button" className={`topic ${query===t?'on':''}`} disabled={newsLoading} onClick={()=>findNews(t)}>{t}</button>)}
+       {TOPICS.map(t=><button key={t.q} type="button" className={`topic ${topic===t.q?'on':''}`} disabled={newsLoading} onClick={()=>{setQuery('');findNews(t.q)}}>{t.label}</button>)}
       </div>
+      <form className="searchbar" onSubmit={e=>{e.preventDefault();if(query.trim())findNews(query.trim())}}>
+       <input aria-label="Search news" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Or search anything, e.g. Australia student visa"/>
+       <button className="primary" disabled={newsLoading||!query.trim()}>Search</button>
+      </form>
+      {!newsLoading&&news&&news.length>0&&(
+       <div className="segmented" role="group" aria-label="Sources">
+        <button type="button" className={showVerified?'on':''} disabled={!verified.length} onClick={()=>setVerifiedOnly(true)}>Verified sources ({verified.length})</button>
+        <button type="button" className={!showVerified?'on':''} onClick={()=>setVerifiedOnly(false)}>All sources ({news.length})</button>
+       </div>
+      )}
 
       {newsLoading&&<div className="empty">Loading the latest headlines…</div>}
       {!newsLoading&&newsError&&<div className="empty">{newsError}</div>}
@@ -201,14 +211,17 @@ export default function Home(){
 
       {!newsLoading&&news&&news.length>0&&(
        <ul className="news">
-        {news.map(item=>{
+        {listed.map(item=>{
          const saved=articleByUrl.get(item.url);
          const made=saved?draftCount.get(saved.id)||0:0;
          return (
           <li key={item.url}>
            <div className="news-text">
             <a className="news-title" href={item.url} target="_blank" rel="noreferrer">{item.title}</a>
-            <p className="meta">{item.source||'News'}{item.published_at&&<> · {ago(item.published_at)}</>}{made>0&&<span className="chip ok tiny">written</span>}</p>
+            <p className="meta">
+             {item.trust==='official'?<span className="chip ok tiny">Official</span>:item.trust==='trusted'?<span className="chip info tiny">Trusted</span>:<span className="chip tiny">Unverified</span>}
+             {item.source||'News'}{item.published_at&&<> · {ago(item.published_at)}</>}{made>0&&<span className="chip warn tiny">post written</span>}
+            </p>
             {item.summary&&<p className="news-summary">{item.summary}</p>}
            </div>
            <button className={made>0?'ghost small':'primary small'} disabled={busy||!config?.gemini} onClick={()=>writePost(item)}>

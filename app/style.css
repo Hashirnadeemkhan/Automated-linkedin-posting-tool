@@ -72,6 +72,7 @@ button.link:hover:not(:disabled){text-decoration:underline}
 .chip.ok{background:var(--ok-soft); color:var(--ok)}
 .chip.warn{background:var(--warn-soft); color:var(--warn)}
 .chip.danger{background:var(--danger-soft); color:var(--danger)}
+.chip.info{background:var(--accent-soft); color:var(--accent)}
 .chip.tiny{font-size:.7rem; padding:1px 7px}
 .notice{border-radius:var(--radius-sm); padding:11px 14px; font-size:.88rem; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap}
 .notice.warn{background:var(--warn-soft); color:var(--warn)}
@@ -93,6 +94,9 @@ button.link:hover:not(:disabled){text-decoration:underline}
 .topic{border:1px solid var(--border-strong); padding:4px 12px; font-size:.8rem; font-weight:500; color:var(--muted); background:var(--surface)}
 .topic:hover:not(:disabled){color:var(--text); border-color:var(--text)}
 .topic.on{background:var(--accent-soft); color:var(--accent); border-color:var(--accent)}
+.segmented{display:flex; background:var(--surface-2); border-radius:999px; padding:3px; gap:2px; align-self:flex-start; max-width:100%}
+.segmented button{padding:5px 14px; font-size:.82rem; font-weight:600; color:var(--muted)}
+.segmented button.on{background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .news{list-style:none; margin:0; padding:0; max-height:70vh; overflow-y:auto; border-top:1px solid var(--border)}
 .news li{display:flex; gap:12px; align-items:flex-start; padding:14px 2px; border-bottom:1px solid var(--border)}
 .news li:last-child{border-bottom:0}
